@@ -4,12 +4,15 @@ import asyncio
 import logging
 
 from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.conditions import TextMentionTermination, FunctionCallTermination
+from autogen_agentchat.teams import RoundRobinGroupChat
 from autogen_agentchat.ui import Console
 from autogen_core import CancellationToken
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_ext.tools.mcp import SseServerParams, mcp_server_tools
-from settings import settings
 
+from settings import settings
+from config import EMAIL_RETRIEVER_AGENT_SYSTEM_PROMPT, EMAIL_CRITIC_AGENT_SYSTEM_PROMPT, response_dispatcher
 
 logging.debug("MCP Server Configuration:")
 logging.debug(f"  URL: {settings.MCP_SERVER_URL}")
@@ -21,34 +24,55 @@ mcp_server_params = SseServerParams(
 
 mcp_tools = mcp_server_tools(mcp_server_params)
 
+tools = asyncio.run(mcp_tools)
 
 openai_client =  OpenAIChatCompletionClient(
     model="gpt-4o",
     api_key=settings.OPENAI_API_KEY
 )
 
+
+function_call_termination = FunctionCallTermination(function_name="response_dispatcher")
+
+
 async def get_emails_using_mcp(access_token: str, query: str) -> str:
 
-    tools = await mcp_tools
-    print(tools)
+
     email_retriever_agent = AssistantAgent(
         name="email_retriever",
         model_client=openai_client,
         tools=tools,
-        system_message=
-            "You are a world-class email summarizer. "
-            "You will be provided with tools to fetch and summarize emails. "
-            f"Use the provided access token: {access_token} to access tools for authentication. "
-            "Your task is to fetch the most recent emails based on the query provided.",
-
+        system_message=EMAIL_RETRIEVER_AGENT_SYSTEM_PROMPT.format(access_token=access_token)
     )
 
-
-    result = await email_retriever_agent.run(
-        task=query,
-        cancellation_token=CancellationToken()
+    critic_agent = AssistantAgent(
+        name="critic_agent",
+        description="A critic agent that evaluates the response of the email retriever agent.",
+        model_client=openai_client,
+        tools=[response_dispatcher],
+        system_message=EMAIL_CRITIC_AGENT_SYSTEM_PROMPT,
     )
-    return result
+
+    # Create a console for interaction
+    agents = [email_retriever_agent, critic_agent]
+
+    research_helper_team = RoundRobinGroupChat(
+        agents,
+        max_turns=10,
+        termination_condition=TextMentionTermination("TERMINATE") | function_call_termination
+    )
+
+    response = await research_helper_team.run(task=query)
+    logging.debug("Response from research helper team:")
+
+    messages = response.messages
+
+    for agent in messages:
+        logging.debug(f"{agent.source}: {agent}")
+    # Extract the final response from the email retriever agent
+    return messages
+
+
 
 
 

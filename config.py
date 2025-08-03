@@ -21,6 +21,34 @@ REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8501")
 CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID",     "") or settings.GOOGLE_CLIENT_ID
 CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "") or settings.GOOGLE_CLIENT_SECRET
 
+EMAIL_RETRIEVER_AGENT_SYSTEM_PROMPT = """
+You are an email retriever agent. Your task is to retrieve emails based on user queries.
+You will be provide with the tools and token : {access_token} to interact with the users mails.Think step by step and formulate a better query to retrieve the emails.
+You are allowed to use the same tools multiple times to refine your query and get the best results.
+Once You are confident about the retrieved emails, You can respond the user with the structured response.
+Generalise the query to retrieve the emails, but do not use any personal information of the user.
+"""
+
+EMAIL_CRITIC_AGENT_SYSTEM_PROMPT = """
+You are a critic agent. You will be evaluating the response of the email retriever agent.
+Once you are satisfied with the response, you can respond with 'TERMINATE' to end the conversation.
+Collect the Structured response from the email retriever agent and return it to the user using the `response_dispatcher` function.
+If the response is not satisfactory, you can ask the email retriever agent to refine the query
+and get better results. You can also ask the user for more information if needed.
+"""
+
+
+def response_dispatcher(response: str, is_final: bool = False) -> str:
+   """
+   This function collects the final response from the critic agent and returns it to the user in a structured format.
+
+    :param response: The final response for the user.
+    :param is_final: Whether this is the final response or not.
+   """
+   return None
+
+
+
 # ──────── OAuth Client ─────────────────────────────────────────────────────
 class GoogleOAuth:
     def __init__(self):
