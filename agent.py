@@ -1,6 +1,8 @@
 # agent.py
 
 import asyncio
+import logging
+
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.ui import Console
 from autogen_core import CancellationToken
@@ -8,37 +10,61 @@ from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_ext.tools.mcp import SseServerParams, mcp_server_tools
 from settings import settings
 
-async def main() -> None:
-    server_params = SseServerParams(
-        url="http://127.0.0.1:8000/sse",
-        headers={"Content-Type": "application/json"},
-        timeout=30,
-    )
-    tools = await mcp_server_tools(server_params)
 
-    model_client = OpenAIChatCompletionClient(
-        model="gpt-4o",
-        api_key=settings.OPENAI_API_KEY,
-    )
+logging.debug("MCP Server Configuration:")
+logging.debug(f"  URL: {settings.MCP_SERVER_URL}")
+mcp_server_params = SseServerParams(
+    url=settings.MCP_SERVER_URL,
+    headers={"Content-Type": "application/json"},
+    timeout=30
+)
 
-    agent = AssistantAgent(
-        name="email_summarizer",
-        model_client=model_client,
+mcp_tools = mcp_server_tools(mcp_server_params)
+
+
+openai_client =  OpenAIChatCompletionClient(
+    model="gpt-4o",
+    api_key=settings.OPENAI_API_KEY
+)
+
+async def get_emails_using_mcp(access_token: str, query: str) -> str:
+
+    tools = await mcp_tools
+    print(tools)
+    email_retriever_agent = AssistantAgent(
+        name="email_retriever",
+        model_client=openai_client,
         tools=tools,
-        system_message=(
-            "You are a world-class email summariser. "
-            "Use the `get_mails` tool by passing the access_token, query, and max_results. "
-            "Return a bulleted list of the email subjects."
-        ),
+        system_message=
+            "You are a world-class email summarizer. "
+            "You will be provided with tools to fetch and summarize emails. "
+            f"Use the provided access token: {access_token} to access tools for authentication. "
+            "Your task is to fetch the most recent emails based on the query provided.",
+
     )
 
-    # For console testing:
-    await Console(
-        agent.run_stream(
-            task="Fetch the 5 most recent emails with query 'subject:Demo'",
-            cancellation_token=CancellationToken()
-        )
-    )
 
-if __name__ == "__main__":
-    asyncio.run(main())
+    result = await email_retriever_agent.run(
+        task=query,
+        cancellation_token=CancellationToken()
+    )
+    return result
+
+
+
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
+
+    print("Starting MCP Email Retrieval Agent...")
+
+    access_token = "your_access_token_here"  # Replace with your actual access token
+    query = "Get my"
+    print(f"Using access token: {access_token}")
+    print(f"Querying emails with query: {query}")
+    import asyncio
+    result = asyncio.run(get_emails_using_mcp(access_token, query))
+    print("Email retrieval completed.")
+    print("Result:", result)
+
+
+

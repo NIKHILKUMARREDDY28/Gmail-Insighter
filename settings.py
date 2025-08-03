@@ -10,8 +10,11 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
+    MCP_SERVER_URL: str
+
     class Config:
         _env_file = None
+        extra = "allow"
 
 load_dotenv(find_dotenv())
 
