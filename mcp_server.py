@@ -1,17 +1,14 @@
-
-import logging
 import traceback
 
 from googleapiclient.discovery import build
 from google.oauth2.credentials import Credentials
 from langchain_google_community.gmail.search import GmailSearch, Resource
 
-logging.basicConfig(level=logging.DEBUG)
+from logger.app_logger import log_message
 
 from fastmcp import FastMCP
 
 from cache import get_session_details_from_cache
-
 
 from langchain_community.tools.gmail.search import GmailSearch
 
@@ -30,12 +27,17 @@ async def get_top_mails_for_query(session_id: str, query: str, top_n_mails: int 
     try:
 
         session_data = get_session_details_from_cache(session_id)
+
+        if not session_data:
+            log_message(f"[{session_id}]: No session data found for session_id: {session_id}", level="warning")
+            raise ValueError(f"No session data found for session_id: {session_id}")
+
         access_token = session_data.get("access_token")
         refresh_token = session_data.get("refresh_token")
         scopes = session_data.get("scope")
         id_token = session_data.get("id_token")
 
-        credentials = Credentials(token=access_token,id_token=id_token,refresh_token=refresh_token, scopes=scopes)
+        credentials = Credentials(token=access_token, id_token=id_token, refresh_token=refresh_token, scopes=scopes)
         # Build the Gmail API client.
         api_resource = build("gmail", "v1", credentials=credentials)
 
@@ -50,8 +52,13 @@ async def get_top_mails_for_query(session_id: str, query: str, top_n_mails: int 
         }
 
         results = await gmail_search.ainvoke(search_input)
-
-        logging.debug(results)
+        if not results:
+            log_message(f"[{session_id}]: No emails found for query: {query}", level="info")
+            return {
+                "success": True,
+                "count": 0,
+                "emails": []
+            }
         return {
             "success": True,
             "count": len(results),
@@ -59,7 +66,7 @@ async def get_top_mails_for_query(session_id: str, query: str, top_n_mails: int 
         }
 
     except Exception as e:
-        logging.error(traceback.format_exc())
+        log_message(f"[{session_id}]: Error retrieving emails: {traceback.format_exc()}", level="error")
         return {
             "success": False,
             "error": str(e)
