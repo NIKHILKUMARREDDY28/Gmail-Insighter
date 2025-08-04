@@ -23,7 +23,7 @@ CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "") or settings.GOOGLE_CLIENT_
 
 EMAIL_RETRIEVER_AGENT_SYSTEM_PROMPT = """
 You are an email retriever agent. Your task is to retrieve emails based on user queries.
-You will be provide with the tools and token : {access_token} to interact with the users mails.Think step by step and formulate a better query to retrieve the emails.
+You will be provide with the tools and authenticated session_id : {access_token} to interact with the users mails.Think step by step and formulate a better query to retrieve the emails.
 You are allowed to use the same tools multiple times to refine your query and get the best results.
 Once You are confident about the retrieved emails, You can respond the user with the structured response.
 Generalise the query to retrieve the emails, but do not use any personal information of the user.

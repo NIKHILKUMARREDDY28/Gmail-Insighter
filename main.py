@@ -3,6 +3,8 @@ import asyncio
 import streamlit as st
 from config import *
 from agent import get_emails_using_mcp
+from cache import save_encrypted_cache
+from uuid import uuid4
 
 # ──────── App Configuration ───────────────────────────────────────────────────
 st.set_page_config(
@@ -15,6 +17,8 @@ st.set_page_config(
 def authenticate(oauth, code):
     token = oauth.fetch_token(code)
     oauth.save_token(token)
+    st.session_state["session_id"] = str(uuid4())  # Generate a unique session ID
+    save_encrypted_cache(st.session_state["session_id"], token, expire_in=3600)  # Save token in cache
     st.experimental_set_query_params()  # clear code from URL
     st.sidebar.success("✅ Authentication successful!")
     return token
@@ -86,7 +90,7 @@ def main():
         st.session_state.history.append(("user", prompt))
         with st.spinner("Fetching & summarising emails…"):
             try:
-                summaries = fetch_and_summarize(access_token, prompt)
+                summaries = fetch_and_summarize(st.session_state["session_id"], prompt)
                 if summaries:
                     for summary in summaries:
                         st.session_state.history.append(("assistant", summary))
